@@ -1,0 +1,58 @@
+#!/usr/bin/python
+# coding: UTF-8
+
+import boto
+import boto.ec2
+import boto.vpc
+from boto.utils import get_instance_metadata
+
+import argparse
+import os
+import sys
+
+
+def main():
+    try:
+        ec2_conn = boto.ec2.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
+        vpc_conn = boto.vpc.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
+    except:
+        print "UNKNOWN: Unable to connect to reqion %s" %(args.region)
+        sys.exit(1)
+
+    rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
+
+    has_default_route = False
+    for route in rt.routes:
+        if route.destination_cidr_block == args.network:
+            has_default_route = True
+    if has_default_route:
+        vpc_conn.replace_route(
+                route_table_id=rt.id,
+                destination_cidr_block=args.network,
+                instance_id=get_instance_metadata()['instance-id'])
+    else:
+        vpc_conn.create_route(
+                route_table_id=rt.id,
+                destination_cidr_block=args.network,
+                instance_id=get_instance_metadata()['instance-id'])
+
+    sys.exit(0)
+
+#
+#引数の処理
+#
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Instance Start Stop')
+
+    parser.add_argument('-a', '--aws-access-key-id', required=False, dest='aws_access_key_id', help='AWS Access Key')
+    parser.add_argument('-s', '--aws-secret-access-key', required=False, dest='aws_secret_access_key', help='AWS Secret Access Key')
+    parser.add_argument('--profile', required=False, dest='profile', help=' Profile name of AWS shared credential file entry.')
+    parser.add_argument('-r', '--region', required=True, dest='region', help='AWS Region')
+    parser.add_argument('-n', '--name', required=False, dest='tagname', help='Name_Tag')
+    parser.add_argument('-f', '--filename', required=False, dest='filename', help='List File')
+    parser.add_argument('-R', '--route-table', required=True, dest='routetable', help='AWS Route Table Name')
+    parser.add_argument('-N', '--network', required=True, dest='network', help='AWS Network Address')
+
+    args = parser.parse_args()
+
+    main()
