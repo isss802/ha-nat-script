@@ -23,7 +23,7 @@ def main():
         rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
     except:
         print "UNKNOWN: Was not found %s" %(args.routetable)
-        syt.exit(1)
+        sys.exit(1)
 
     has_default_route = False
 
