@@ -19,12 +19,18 @@ def main():
         print "UNKNOWN: Unable to connect to reqion %s" %(args.region)
         sys.exit(1)
 
-    rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
+    try:
+        rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
+    except:
+        print "UNKNOWN: Was not found %s" %(args.routetable)
+        syt.exit(1)
 
     has_default_route = False
+
     for route in rt.routes:
         if route.destination_cidr_block == args.network:
             has_default_route = True
+
     if has_default_route:
         vpc_conn.replace_route(
                 route_table_id=rt.id,
@@ -38,9 +44,7 @@ def main():
 
     sys.exit(0)
 
-#
-#引数の処理
-#
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Instance Start Stop')
 
