@@ -50,8 +50,15 @@ def main():
             has_default_route = True
             prt=route            
 
-    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
+    if has_default_route:
+        print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
+    else:
+        print "ERROR: Route is not registered %s" %(args.network)
+        sys.exit(1)
+         
     sys.exit(0)
+
+    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
 
 
 if __name__ == "__main__":
