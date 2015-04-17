@@ -9,6 +9,7 @@ from boto.utils import get_instance_metadata
 import argparse
 import os
 import sys
+import time
 
 
 def main():
@@ -41,6 +42,15 @@ def main():
                 route_table_id=rt.id,
                 destination_cidr_block=args.network,
                 instance_id=get_instance_metadata()['instance-id'])
+
+    has_default_route = False
+
+    for route in rt.routes:
+        if route.destination_cidr_block == args.network:
+            has_default_route = True
+            prt=route            
+
+    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.gateway_id
 
     sys.exit(0)
 
