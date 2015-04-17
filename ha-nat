@@ -50,8 +50,7 @@ def main():
             has_default_route = True
             prt=route            
 
-    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.gateway_id
-
+    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
     sys.exit(0)
 
 
