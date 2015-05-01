@@ -1,0 +1,100 @@
+#!/usr/bin/python
+# coding: UTF-8
+
+import boto
+import boto.ec2
+import boto.vpc
+from boto.utils import get_instance_metadata
+
+import argparse
+import os
+import sys
+import time
+
+
+def main():
+    try:
+        ec2_conn = boto.ec2.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
+        vpc_conn = boto.vpc.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
+    except:
+        print "UNKNOWN: Unable to connect to reqion %s" %(args.region)
+        sys.exit(1)
+
+    change_privateip(vpc_conn)
+    change_eip(ec2_conn)
+    sys.exit(0)
+
+def change_privateip(vpc_conn):
+    try:
+        rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
+    except:
+        print "UNKNOWN: Was not found %s" %(args.routetable)
+        sys.exit(1)
+
+    has_default_route = False
+
+    for route in rt.routes:
+        if route.destination_cidr_block == args.network:
+            has_default_route = True
+
+    if has_default_route:
+        vpc_conn.replace_route(
+                route_table_id=rt.id,
+                destination_cidr_block=args.network,
+                instance_id=get_instance_metadata()['instance-id'])
+    else:
+        vpc_conn.create_route(
+                route_table_id=rt.id,
+                destination_cidr_block=args.network,
+                instance_id=get_instance_metadata()['instance-id'])
+
+    has_default_route = False
+
+    for route in rt.routes:
+        if route.destination_cidr_block == args.network:
+            has_default_route = True
+            prt=route
+
+    if has_default_route:
+        print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
+    else:
+        print "ERROR: Route is not registered %s" %(args.network)
+        sys.exit(1)
+
+
+    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
+
+
+def change_eip(ec2_conn):
+
+    eip=ec2_conn.get_all_addresses(allocation_ids=args.allocation-id)
+
+
+    try:
+        ec2_conn.disassociate_address(eip.public_ip)
+    except:
+        print "ERROR: Allocation-id is not registered %s" %(args.allocation-id)
+        sys.exit(1)
+
+
+    ec2_conn.associate_address(instance_id=get_instance_metadata()['instance-id'],
+                                allocation_id=args.allocation-id)
+
+    print "%s InstanceID:%s EIP:%s" %(time.strftime("%c"),eip.instance_id.eip.public_ip)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Instance Start Stop')
+
+    parser.add_argument('-a', '--aws-access-key-id', required=False, dest='aws_access_key_id', help='AWS Access Key')
+    parser.add_argument('-s', '--aws-secret-access-key', required=False, dest='aws_secret_access_key', help='AWS Secret Access Key')
+    parser.add_argument('--profile', required=False, dest='profile', help=' Profile name of AWS shared credential file entry.')
+    parser.add_argument('-r', '--region', required=True, dest='region', help='AWS Region')
+    parser.add_argument('-n', '--name', required=False, dest='tagname', help='Name_Tag')
+    parser.add_argument('-f', '--filename', required=False, dest='filename', help='List File')
+    parser.add_argument('-R', '--route-table', required=True, dest='routetable', help='AWS Route Table Name')
+    parser.add_argument('-N', '--network', required=True, dest='network', help='AWS Network Address')
+    parser.add_argument('-E', '--allocation-id', required=True, dest='allocation-id', help='AWS EIP Allocation ID')
+
+    args = parser.parse_args()
+
+    main()
