@@ -48,6 +48,12 @@ def change_privateip(vpc_conn):
                 destination_cidr_block=args.network,
                 instance_id=get_instance_metadata()['instance-id'])
 
+    try:
+        rt = vpc_conn.get_all_route_tables(filters={'tag:Name':args.routetable})[0]
+    except:
+        print "UNKNOWN: Was not found %s" %(args.routetable)
+        sys.exit(1)
+
     has_default_route = False
 
     for route in rt.routes:
@@ -61,26 +67,25 @@ def change_privateip(vpc_conn):
         print "ERROR: Route is not registered %s" %(args.network)
         sys.exit(1)
 
-
-    print "%s cidr:%s gateway:%s" %(time.strftime("%c"),prt.destination_cidr_block,prt.instance_id)
-
-
 def change_eip(ec2_conn):
 
-    eip=ec2_conn.get_all_addresses(allocation_ids=args.allocation-id)
-
+    eip=ec2_conn.get_all_addresses(allocation_ids=args.allocation_id)[0]
 
     try:
         ec2_conn.disassociate_address(eip.public_ip)
     except:
-        print "ERROR: Allocation-id is not registered %s" %(args.allocation-id)
+        print "ERROR: Allocation-id is not registered %s" %(args.allocation_id)
         sys.exit(1)
 
+    try:
+        ec2_conn.associate_address(instance_id=get_instance_metadata()['instance-id'],
+                                    allocation_id=args.allocation_id)
+    except:
+        print "ERROR: Registration error of ElasticIP %s" %(args.allocation_id)
+        sys.exit(1)
 
-    ec2_conn.associate_address(instance_id=get_instance_metadata()['instance-id'],
-                                allocation_id=args.allocation-id)
+    print "%s InstanceID:%s EIP:%s" %(time.strftime("%c"),eip.instance_id,eip.public_ip)
 
-    print "%s InstanceID:%s EIP:%s" %(time.strftime("%c"),eip.instance_id.eip.public_ip)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Instance Start Stop')
@@ -93,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--filename', required=False, dest='filename', help='List File')
     parser.add_argument('-R', '--route-table', required=True, dest='routetable', help='AWS Route Table Name')
     parser.add_argument('-N', '--network', required=True, dest='network', help='AWS Network Address')
-    parser.add_argument('-E', '--allocation-id', required=True, dest='allocation-id', help='AWS EIP Allocation ID')
+    parser.add_argument('-E', '--allocation-id', required=True, dest='allocation_id', help='AWS EIP Allocation ID')
 
     args = parser.parse_args()
 
