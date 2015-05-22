@@ -13,6 +13,7 @@ import time
 
 
 def main():
+    try:
         ec2_conn = boto.ec2.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
         vpc_conn = boto.vpc.connect_to_region(args.region,aws_access_key_id=args.aws_access_key_id,aws_secret_access_key=args.aws_secret_access_key,profile_name=args.profile)
     except:
