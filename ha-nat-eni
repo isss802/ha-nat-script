@@ -33,12 +33,24 @@ def main():
     # ENIが自インスタンスに付与されていない場合
     if eni.attachment.instance_id <> instance_id:
         try:
-            ec2_conn.detach_network_interface(eni.attachment.id)
+            ec2_conn.detach_network_interface(eni.attachment.id,force=True)
         except:
             print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
             sys.exit(1)
 
-        time.sleep(10)
+        #ENI Status確認
+        i = 0
+        while 1:
+            eni = ec2_conn.get_all_network_interfaces(network_interface_ids=args.eni_id)[0]
+            #ENIが外れたか確認
+            if eni.status == "available":
+                break
+            #10回繰り返して外れない場合は終了
+            i += 1
+            if i == 10:
+                print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
+                sys.exit(1)
+            time.sleep(2)
 
         try:
             ec2_conn.attach_network_interface(args.eni_id,instance_id,1)
