@@ -10,11 +10,15 @@ import os
 import sys
 import time
 
-
+"""
+ENIの切り替え
+"""
 def main():
 
     #初期値
     instance_id = get_instance_metadata()['instance-id']
+    if not args.region:
+        args.region=get_instance_metadata()['placement']['availability-zone'][:-1]
 
     # EC2取得
     try:
@@ -30,36 +34,66 @@ def main():
         print "%s UNKNOWN: Was not found %s" %(time.strftime("%c"),args.eni_id)
         sys.exit(1)
 
-    # ENIが自インスタンスに付与されていない場合
-    if eni.attachment.instance_id <> instance_id:
-        try:
-            ec2_conn.detach_network_interface(eni.attachment.id,force=True)
-        except:
-            print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
-            sys.exit(1)
+    #ENIが外れていた場合
+    if eni.status == "available":
+        eni_attach(ec2_conn,instance_id)
+    #ENIが付与されていた場合
+    elif eni.status == "in-use":
+        #ENIが自分に付与されている場合は終了
+        if eni.attachment.instance_id <> instance_id:
+            eni_detach(ec2_conn)
+            eni_attach(ec2_conn,instance_id)
+        else:
+            print "%s INFO: Already ENI is attached. Script HA-ENI Successfully completed." %(time.strftime("%c"))
+            sys.exit(0)
 
-        #ENI Status確認
-        i = 0
-        while 1:
-            eni = ec2_conn.get_all_network_interfaces(network_interface_ids=args.eni_id)[0]
-            #ENIが外れたか確認
-            if eni.status == "available":
-                break
-            #10回繰り返して外れない場合は終了
-            i += 1
-            if i == 10:
-                print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
-                sys.exit(1)
-            time.sleep(2)
-
-        try:
-            ec2_conn.attach_network_interface(args.eni_id,instance_id,1)
-        except:
-            print "%s ERROR: Failed to attach the eni-id %s" %(time.strftime("%c"),args.eni_id)
-            sys.exit(1)
+    else:
+        print "%s ERROR: Failed to eni status" %(time.strftime("%c"))
+        sys.exit(1)
 
     print "%s INFO: Script HA-ENI Successfully completed " %(time.strftime("%c"))
     sys.exit(0)
+
+"""
+ENIのデタッチ
+@param ec2_conn
+@return
+"""
+def eni_detach(ec2_conn):
+    eni = ec2_conn.get_all_network_interfaces(network_interface_ids=args.eni_id)[0]
+    # ENIが自インスタンスに付与されていない場合
+    try:
+         ec2_conn.detach_network_interface(eni.attachment.id,force=True)
+    except:
+        print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
+        sys.exit(1)
+
+    #ENI Status確認
+    i = 0
+    while 1:
+        eni = ec2_conn.get_all_network_interfaces(network_interface_ids=args.eni_id)[0]
+        #ENIが外れたか確認
+        if eni.status == "available":
+            break
+        #10回繰り返して外れない場合は終了
+        i += 1
+        if i == 10:
+            print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
+            sys.exit(1)
+        time.sleep(2)
+
+"""
+ENIのアタッチ
+@param ec2_conn
+@param instance_id
+@return
+"""
+def eni_attach(ec2_conn,instance_id):
+    try:
+        ec2_conn.attach_network_interface(args.eni_id,instance_id,1)
+    except:
+        print "%s ERROR: Failed to attach the eni-id %s" %(time.strftime("%c"),args.eni_id)
+        sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Instance Start Stop')
@@ -67,7 +101,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--aws-access-key-id', required=False, dest='aws_access_key_id', help='AWS Access Key')
     parser.add_argument('-s', '--aws-secret-access-key', required=False, dest='aws_secret_access_key', help='AWS Secret Access Key')
     parser.add_argument('--profile', required=False, dest='profile', help=' Profile name of AWS shared credential file entry.')
-    parser.add_argument('-r', '--region', required=True, dest='region', help='AWS Region')
+    parser.add_argument('-r', '--region', required=False, dest='region', help='AWS Region')
     parser.add_argument('-e', '--eni_id', required=True, dest='eni_id', help='AWS Elastic Network Interface ID')
 
     args = parser.parse_args()
