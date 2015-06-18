@@ -41,6 +41,7 @@ def main():
     elif eni.status == "in-use":
         #ENIが自分に付与されている場合は終了
         if eni.attachment.instance_id <> instance_id:
+            check_instance_state(ec2_conn,eni)
             eni_detach(ec2_conn)
             eni_attach(ec2_conn,instance_id)
         else:
@@ -70,7 +71,7 @@ def eni_detach(ec2_conn):
 
     #ENI Status確認
     i = 0
-    while 1:
+    while True:
         eni = ec2_conn.get_all_network_interfaces(network_interface_ids=args.eni_id)[0]
         #ENIが外れたか確認
         if eni.status == "available":
@@ -80,7 +81,7 @@ def eni_detach(ec2_conn):
         if i == 10:
             print "%s ERROR: Failed to detach the attachment-id %s" %(time.strftime("%c"),eni.attachment.id)
             sys.exit(1)
-        time.sleep(2)
+        time.sleep(2.0)
 
 """
 ENIのアタッチ
@@ -94,6 +95,24 @@ def eni_attach(ec2_conn,instance_id):
     except:
         print "%s ERROR: Failed to attach the eni-id %s" %(time.strftime("%c"),args.eni_id)
         sys.exit(1)
+
+"""
+インスタンスステート確認
+@param ec2_conn
+@param eni
+@return
+"""
+def check_instance_state(ec2_conn,eni):
+    instance_id=eni.attachment.instance_id
+    while True:
+        instance=ec2_conn.get_all_instances(instance_ids=instance_id)[0].instances[0]
+        if instance.state == "terminated" or instance.state == "running" or instance.state == "stopped":
+            break
+        elif instance.state == "pending" or instance.state == "stopping" or instance.state == "shutting-down" or instance.state == "rebooting":
+            time.sleep(2.0)
+        else:
+            print "%s ERROR:Instance State %s" %(time.strftime("%c"),instance.state)
+            sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Instance Start Stop')
